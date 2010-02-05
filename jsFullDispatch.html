@@ -1,0 +1,167 @@
+<!--
+	Full Dispatch Technique in Javascript
+
+	Implementation:
+		Vjeux <vjeuxx@gmail.com>
+		12 January 2010
+
+	Related Article:
+		http://blog.vjeux.com/2010/javascript/javascript-full-dispatch.html
+-->
+
+<html>
+
+<h1>Full Dispatch Technique</h1>
+
+<script>
+
+/* output function to display things easily */
+
+var output = {
+	error: function (msg) {
+		document.write('<div style="color: red;">Error: ' + msg + '</div>');
+	},
+	log: function () {
+		document.write('<div>');
+		for (var i = 0; i < arguments.length; ++i) {
+			document.write(arguments[i]);
+			if (i !== arguments.length - 1) {
+				document.write(' - ');
+			}
+		}
+		document.write('</div>');
+	}
+}
+
+/* Full Dispatch */
+
+function fullDispatch(arg, list) {
+	outer: for (var i = 0; i < list.length; ++i) {
+		if (list[i].length - 1 !== arg.length) {
+			// Arguments length is different than number of conditions, no need to continue
+			continue;
+		}
+
+		for (var j = 0; j < arg.length; ++j) {
+			if (typeof list[i][j + 1] === 'function' && !list[i][j + 1](arg[j])) {
+				// Condition fail, try next overriding function
+				continue outer;
+			}
+		}
+		// Execute the right function
+		return list[i][0].apply(this, arg);
+	}
+	output.error('no dispatch found');
+}
+
+
+/* Helpers */
+
+var helper = {};
+
+// Combination
+helper.or = function (f, g) { return function (x) { return f(x) || g(x); }; };
+helper.and = function (f, g) { return function (x) { return f(x) && g(x); }; };
+helper.not = function (f) { return function (x) { return !f(x); }; };
+
+// Primitives
+helper.Value = function (n) { return function (x) { return x === n; }; };
+helper.StrictNegative = function (x) { return x < 0; };
+
+// Primitive Combinations
+helper.Zero = helper.Value(0);
+helper.Negative = helper.or(helper.StrictNegative, helper.Zero);
+helper.StrictPositive = helper.not(helper.or(helper.Zero, helper.StrictNegative));
+helper.Positive = helper.not(helper.StrictNegative);
+
+
+/* Factorial */
+
+var fact = function () {
+	return fullDispatch(arguments, fact.list);
+}
+
+fact.list = [
+	[function (n) { output.error('n >= 0'); },
+		helper.StrictNegative],
+
+	[function (n) { return 1; },
+		helper.or(helper.Zero, helper.Value(1))],
+
+	[function (n) { return n * fact(n - 1); },
+		null]
+];
+
+output.log('fact(-1)', fact(-1));
+output.log('fact(0)', fact(0));
+output.log('fact(1)', fact(1));
+output.log('fact(5)', fact(5));
+
+
+/* Ackermann */
+
+var ackermann = function () {
+	return fullDispatch(arguments, ackermann.list);
+}
+
+ackermann.list = [
+	[function (m, n) { output.error('m >= 0'); },
+		helper.StrictNegative,
+		null],
+
+	[function (m, n) { output.error('n >= 0'); },
+		null,
+		helper.StrictNegative],
+
+	[function (m, n) { return n + 1; },
+		helper.Zero,
+		null],
+
+	[function (m, n) { return ackermann(m - 1, 1); },
+		helper.StrictPositive,
+		helper.Zero],
+
+	[function (m, n) { return ackermann(m - 1, ackermann(m, n - 1)); },
+		helper.StrictPositive,
+		helper.StrictPositive]
+];
+
+output.log('ackermann(-1, 0)', ackermann(-1, 0));
+output.log('ackermann(0, 0)', ackermann(0, 0));
+output.log('ackermann(2, 4)', ackermann(2, 4));
+
+
+/* Reducing Code */
+
+var FullDispatch = function () {
+	var object = function () {
+		return fullDispatch(arguments, object.list);
+	};
+	
+	object.add = function (conds, func) {
+		object.list.push([func].concat(conds));
+		return this;
+	}
+	object.list = [];
+	
+	return object;
+};
+
+var ack = FullDispatch()
+	.add([helper.Zero, null],
+		function (m, n) { return n + 1; })
+
+	.add([helper.StrictPositive, helper.Zero],
+		function (m, n) { return ack(m - 1, 1); })
+
+	.add([helper.StrictPositive, helper.StrictPositive],
+		function (m, n) { return ack(m - 1, ack(m, n - 1)); })
+
+	.add([null, null],
+		function (m, n) { return 0; });
+
+output.log('ack(2, 4)', ack(2, 4));
+</script>
+
+
+</html>
